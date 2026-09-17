@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circular Sender</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0b0d14; --surface: #131620; --surface2: #1a1e2e;
+  --border: #252840; --border2: #2e3350;
+  --blue: #4f8ef7; --blue-dim: #3a6fd8; --blue-glow: rgba(79,142,247,0.15);
+  --green: #3ddc84; --green-dim: #2ab86a;
+  --red: #ff5c5c; --red-dim: #cc3333; --orange: #f59e0b;
+  --text: #dde1f0; --muted: #5a6080; --muted2: #7a82a0;
+  --mono: 'JetBrains Mono', monospace; --sans: 'DM Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; font-size: 14px; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(79,142,247,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(79,142,247,0.03) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none; z-index: 0;
+}
+#app { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.header-title { display: flex; align-items: center; gap: 12px; }
+.header-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg,#4f8ef7,#7c3aed); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+.header p { font-size: 12px; color: var(--muted2); margin-top: 1px; }
+.version-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: var(--muted2); font-family: var(--mono); }
+
+.tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+.tab-btn { flex: 1; padding: 9px; border: none; border-radius: 9px; background: transparent; color: var(--muted2); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.tab-btn.active { background: var(--surface2); color: var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.card:focus-within { border-color: var(--border2); }
+.card-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+
+input[type="text"], input[type="time"], select {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 9px 12px; font-family: var(--sans); font-size: 13px;
+  transition: border-color 0.2s, box-shadow 0.2s; outline: none; width: 100%;
+}
+input[type="text"]:focus, input[type="time"]:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+select option { background: var(--surface2); }
+select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a6080' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+.btn { border: none; border-radius: 8px; padding: 9px 16px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.18s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--border2); background: var(--border); }
+.btn-blue { background: var(--blue); color: white; }
+.btn-blue:hover { background: var(--blue-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,142,247,0.3); }
+.btn-green { background: var(--green); color: #071a0f; }
+.btn-green:hover { background: var(--green-dim); transform: translateY(-1px); }
+.btn-red { background: var(--red); color: white; }
+.btn-red:hover { background: var(--red-dim); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+.btn-lg { width: 100%; padding: 14px; font-size: 15px; border-radius: 10px; justify-content: center; }
+
+/* ── Drop Zone — NO onclick, use label trick ── */
+.drop-zone {
+  border: 2px dashed var(--border2); border-radius: 10px; padding: 22px;
+  text-align: center; cursor: pointer; transition: all 0.2s;
+}
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--blue); background: var(--blue-glow); }
+.drop-zone.has-file { border-style: solid; border-color: var(--green); background: rgba(61,220,132,0.05); }
+.drop-zone-icon { font-size: 28px; margin-bottom: 6px; }
+.drop-zone-text { font-size: 13px; color: var(--muted2); }
+.drop-zone-text strong { color: var(--blue); }
+.drop-zone-filename { font-family: var(--mono); font-size: 12px; color: var(--green); margin-top: 4px; font-weight: 600; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media(max-width:600px) { .two-col { grid-template-columns: 1fr; } }
+
+.email-preview-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; }
+.count-badge { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--blue); }
+.chip { background: var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--muted2); font-family: var(--mono); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+.chip:hover { border-color: var(--blue-dim); color: var(--blue); }
+.chip.active { background: rgba(79,142,247,0.2); border-color: var(--blue); color: var(--blue); }
+
+.toggle { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; border-radius: 22px; background: var(--border2); cursor: pointer; transition: 0.2s; }
+.toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; border-radius: 50%; background: white; transition: 0.2s; }
+.toggle input:checked + .toggle-slider { background: var(--blue); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+.toggle-label { font-size: 13px; color: var(--text); }
+
+.progress-bar-track { height: 6px; background: var(--surface2); border-radius: 6px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--green)); border-radius: 6px; transition: width 0.3s ease; width: 0%; }
+.progress-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; font-family: var(--mono); color: var(--muted2); }
+
+.log-panel-content { background: #080a10; border: 1px solid var(--border); border-radius: 10px; height: 200px; overflow-y: auto; padding: 12px; font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+.log-panel-content::-webkit-scrollbar { width: 5px; }
+.log-panel-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.log-entry { display: flex; gap: 8px; align-items: flex-start; }
+.log-time { color: var(--muted); flex-shrink: 0; }
+.log-ok { color: #3ddc84; } .log-err { color: #ff5c5c; } .log-info { color: #a0c8ff; } .log-warn { color: var(--orange); }
+.log-empty { color: var(--muted); font-style: italic; font-size: 12px; text-align: center; padding-top: 70px; }
+
+/* Recipient detail log */
+.log-group { margin-bottom: 8px; }
+.log-group-header { color: #a0c8ff; cursor: pointer; user-select: none; }
+.log-group-header:hover { color: var(--blue); }
+.log-group-emails { display: none; padding-left: 16px; }
+.log-group-emails.open { display: block; }
+.log-email-line { color: var(--muted2); font-size: 11px; }
+.log-email-line.ok { color: #3ddc84; }
+.log-email-line.err { color: #ff5c5c; }
+
+.log-tabs { display: flex; gap: 2px; margin-bottom: 8px; }
+.log-tab-btn { padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--muted2); font-size: 12px; cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
+.log-tab-btn.active { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+.stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.stat-card .stat-val { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+.stat-card .stat-lbl { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+.stat-blue .stat-val { color: var(--blue); } .stat-green .stat-val { color: var(--green); } .stat-red .stat-val { color: var(--red); }
+
+.export-row { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+.acc-row { display: grid; grid-template-columns: 36px 1fr 1fr 1fr 36px; gap: 8px; align-items: center; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.acc-num { width: 28px; height: 28px; background: var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--blue); font-family: var(--mono); }
+.eye-btn { width: 28px; height: 28px; background: var(--border); border: none; border-radius: 6px; cursor: pointer; color: var(--muted2); font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.eye-btn:hover { color: var(--text); background: var(--border2); }
+
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 16px; font-size: 13px; display: flex; align-items: center; gap: 10px; max-width: 320px; animation: slideIn 0.3s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+@keyframes slideIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: none; } }
+.toast.success { border-color: var(--green); } .toast.error { border-color: var(--red); } .toast.info { border-color: var(--blue); }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-title">
+      <div class="header-icon">✉️</div>
+      <div><h1>Circular Sender</h1><p>Bulk email dispatcher for school circulars</p></div>
+    </div>
+    <span class="version-badge">v2.1 HTML</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('send',this)">🚀 Send Circular</button>
+    <button class="tab-btn" onclick="switchTab('accounts',this)">⚙️ Gmail Accounts</button>
+    <button class="tab-btn" onclick="switchTab('logs',this)">📋 Logs <span id="log-badge" style="display:none;background:var(--red);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:2px;">!</span></button>
+  </div>
+
+  <!-- SEND TAB -->
+  <div id="tab-send" class="tab-panel active">
+    <div class="stats-row">
+      <div class="stat-card stat-blue"><div class="stat-val" id="stat-total">0</div><div class="stat-lbl">Total Emails</div></div>
+      <div class="stat-card stat-green"><div class="stat-val" id="stat-sent">0</div><div class="stat-lbl">Sent Successfully</div></div>
+      <div class="stat-card stat-red"><div class="stat-val" id="stat-failed">0</div><div class="stat-lbl">Failed</div></div>
+    </div>
+
+    <div class="two-col">
+      <!-- Excel — hidden input triggered by label only, no onclick on wrapper -->
+      <div class="card">
+        <div class="card-label">📊 Recipients Excel</div>
+        <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelFile(this)">
+        <label for="excel-input">
+          <div class="drop-zone" id="excel-drop">
+            <div class="drop-zone-icon">📂</div>
+            <div class="drop-zone-text"><strong>Click or drop</strong> Excel file</div>
+            <div class="drop-zone-filename" id="excel-filename">No file selected</div>
+          </div>
+        </label>
+        <div id="email-col-section" style="display:none; margin-top:10px;">
+          <div class="card-label" style="margin-bottom:6px;">Detected email columns — select all or pick one:</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;" id="col-chips"></div>
+          <div class="email-preview-bar" style="margin-top:8px;">
+            <span class="count-badge"><span id="email-count">0</span> unique emails</span>
+            <span style="font-size:11px;color:var(--muted2)" id="dup-note"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF -->
+      <div class="card">
+        <div class="card-label">📄 Circular PDF</div>
+        <input type="file" id="pdf-input" accept=".pdf" style="display:none" onchange="handlePdfFile(this)">
+        <label for="pdf-input">
+          <div class="drop-zone" id="pdf-drop">
+            <div class="drop-zone-icon">📑</div>
+            <div class="drop-zone-text"><strong>Click or drop</strong> PDF circular</div>
+            <div class="drop-zone-filename" id="pdf-filename">No file selected</div>
+          </div>
+        </label>
+        <div style="margin-top:10px;">
+          <div class="card-label" style="margin-bottom:4px;">Subject Line</div>
+          <input type="text" id="subject-input" placeholder="Auto-filled from filename…" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Audience -->
+    <div class="card">
+      <div class="card-label">🎯 Target Audience</div>
+      <div style="display:flex;gap:8px;">
+        <select id="class-filter" onchange="refreshEmailCount()" style="flex:1;">
+          <option value="ALL">ALL — All recipients</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Send Settings -->
+    <div class="card">
+      <div class="card-label">⚙️ Send Settings</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label class="toggle"><input type="checkbox" id="test-mode"><span class="toggle-slider"></span></label>
+          <span class="toggle-label">Test Mode (send to primary account only)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label class="toggle"><input type="checkbox" id="schedule-toggle" onchange="toggleSchedule()"><span class="toggle-slider"></span></label>
+          <span class="toggle-label">Schedule</span>
+          <input type="time" id="schedule-time" style="width:110px;display:none;" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="card-label" style="margin-bottom:4px;">Sender Display Name</div>
+        <input type="text" id="sender-name" placeholder="e.g. GAES CIRCULAR" value="GAES CIRCULAR" />
+        <div style="font-size:11px;color:var(--muted2);margin-top:4px;">Recipients will see this name instead of the email address.</div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="card" id="progress-card" style="display:none;">
+      <div class="card-label">📡 Progress</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-labels"><span id="progress-text">0 / 0</span><span id="progress-pct">0%</span></div>
+    </div>
+
+    <button class="btn btn-blue btn-lg" id="send-btn" onclick="startSend()">🚀 START SENDING</button>
+    <button class="btn btn-red btn-lg" id="cancel-btn" onclick="cancelSend()" style="display:none;margin-top:8px;">✕ Cancel</button>
+
+    <div style="margin-top:16px;">
+      <div class="card-label" style="margin-bottom:8px;">📟 Live Output</div>
+      <div class="log-panel-content" id="live-log">
+        <div class="log-empty">Activity will appear here when sending starts…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS TAB -->
+  <div id="tab-accounts" class="tab-panel">
+    <div class="card">
+      <div class="card-label" style="margin-bottom:12px;">🔐 Gmail SMTP Accounts (App Passwords)</div>
+      <p style="font-size:12px;color:var(--muted2);margin-bottom:14px;line-height:1.6;">
+        Use Gmail App Passwords — <strong style="color:var(--text)">myaccount.google.com → Security → 2FA → App Passwords</strong>. Enter the 16-char password with spaces as-is.
+      </p>
+      <div id="acc-grid"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button class="btn btn-green" style="flex:1;" onclick="saveAccounts()">💾 Save Accounts</button>
+        <button class="btn btn-ghost" onclick="exportAccounts()">⬇️ Export JSON</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('import-acc').click()">⬆️ Import JSON</button>
+        <input type="file" id="import-acc" accept=".json" style="display:none" onchange="importAccounts(this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGS TAB -->
+  <div id="tab-logs" class="tab-panel">
+    <div class="stats-row">
+      <div class="stat-card stat-blue"><div class="stat-val" id="log-stat-total">0</div><div class="stat-lbl">Total Dispatches</div></div>
+      <div class="stat-card stat-green"><div class="stat-val" id="log-stat-ok">0</div><div class="stat-lbl">Successful Batches</div></div>
+      <div class="stat-card stat-red"><div class="stat-val" id="log-stat-err">0</div><div class="stat-lbl">Failed Batches</div></div>
+    </div>
+    <div class="export-row">
+      <button class="btn btn-ghost" onclick="exportLog('success')">⬇️ Success Log (CSV)</button>
+      <button class="btn btn-ghost" onclick="exportLog('error')">⬇️ Error Log (CSV)</button>
+      <button class="btn btn-ghost" onclick="exportLog('all')">⬇️ Full Log (CSV)</button>
+      <button class="btn btn-ghost" onclick="clearLogs()" style="color:var(--red)">🗑 Clear</button>
+    </div>
+    <div class="card">
+      <div class="log-tabs">
+        <button class="log-tab-btn active" onclick="switchLogTab('all',this)">All</button>
+        <button class="log-tab-btn" onclick="switchLogTab('success',this)">✅ Success</button>
+        <button class="log-tab-btn" onclick="switchLogTab('error',this)">❌ Errors</button>
+      </div>
+      <!-- Grouped recipient log -->
+      <div class="log-panel-content" id="log-panel" style="height:420px;">
+        <div class="log-empty">No logs yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const PROXY_URL = 'http://localhost:9090/send';
+const BATCH_SIZE = 499;
+
+let state = {
+  excelData: null, excelCols: [], activeCols: [], allEmails: [],
+  classCol: null, classValues: [],
+  pdfFile: null, pdfBase64: null,
+  accounts: [], logs: [],
+  sending: false, cancelFlag: false,
+  totalSent: 0, totalFailed: 0,
+  currentLogFilter: 'all',
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadAccountsFromStorage();
+  buildAccountsGrid();
+  loadLogsFromStorage();
+  renderLogs();
+  setupDragDrop();
+});
+
+// ── TABS ──
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'logs') renderLogs();
+}
+function switchLogTab(f, btn) {
+  state.currentLogFilter = f;
+  document.querySelectorAll('.log-tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLogs();
+}
+
+// ── DRAG & DROP (no double-open issue — input is hidden, label triggers it) ──
+function setupDragDrop() {
+  ['excel-drop','pdf-drop'].forEach(id => {
+    const zone = document.getElementById(id);
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (id === 'excel-drop') processExcel(file);
+      else processPdf(file);
+    });
+  });
+}
+
+// ── EXCEL ──
+function handleExcelFile(input) { if (input.files[0]) processExcel(input.files[0]); }
+
+function processExcel(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      state.excelData = rows;
+
+      document.getElementById('excel-filename').textContent = '✔ ' + file.name;
+      document.getElementById('excel-drop').classList.add('has-file');
+
+      const cols = Object.keys(rows[0] || {});
+      // Detect email columns: by name or by content (@)
+      let emailCols = cols.filter(c => /mail|email/i.test(c));
+      if (emailCols.length === 0) {
+        emailCols = cols.filter(c => {
+          const sample = rows.slice(0,20).map(r => String(r[c]||''));
+          return sample.filter(v => /\S+@\S+\.\S+/.test(v)).length >= 2;
+        });
+      }
+      state.excelCols = emailCols.length > 0 ? emailCols : (cols.length ? [cols[0]] : []);
+      state.activeCols = [...state.excelCols];
+
+      state.classCol = cols.find(c => /class|grade|section/i.test(c)) || null;
+      state.classValues = state.classCol
+        ? [...new Set(rows.map(r => String(r[state.classCol]||'').trim()).filter(Boolean))].sort()
+        : [];
+
+      buildClassFilter();
+      buildColChips();
+      refreshEmailCount();
+    } catch(err) { toast('Error reading Excel: ' + err.message, 'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function buildColChips() {
+  const section = document.getElementById('email-col-section');
+  const el = document.getElementById('col-chips');
+  if (!state.excelCols.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  el.innerHTML = '';
+
+  const allChip = document.createElement('span');
+  allChip.className = 'chip active';
+  allChip.textContent = '✦ All columns';
+  allChip.onclick = () => {
+    state.activeCols = [...state.excelCols];
+    el.querySelectorAll('.chip').forEach((c,i) => c.classList.toggle('active', i===0));
+    refreshEmailCount();
+  };
+  el.appendChild(allChip);
+
+  state.excelCols.forEach(col => {
+    const chip = document.createElement('span');
+    chip.className = 'chip active';
+    chip.textContent = col;
+    chip.onclick = () => {
+      state.activeCols = [col];
+      el.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      refreshEmailCount();
+    };
+    el.appendChild(chip);
+  });
+}
+
+function buildClassFilter() {
+  const sel = document.getElementById('class-filter');
+  sel.innerHTML = '<option value="ALL">ALL — All recipients</option>';
+  state.classValues.forEach(v => {
+    const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  });
+}
+
+function refreshEmailCount() {
+  if (!state.excelData) return;
+  const cf = document.getElementById('class-filter').value;
+  let rows = state.excelData;
+  if (cf !== 'ALL' && state.classCol) rows = rows.filter(r => String(r[state.classCol]||'').trim() === cf);
+
+  const emailSet = new Set();
+  const cols = state.activeCols.length ? state.activeCols : state.excelCols;
+  rows.forEach(row => cols.forEach(col => {
+    const v = String(row[col]||'').trim().toLowerCase();
+    if (/\S+@\S+\.\S+/.test(v)) emailSet.add(v);
+  }));
+
+  state.allEmails = [...emailSet];
+  const rawCount = rows.flatMap(r => cols.map(c => String(r[c]||''))).filter(v => /\S+@\S+\.\S+/.test(v)).length;
+  const dups = rawCount - state.allEmails.length;
+
+  document.getElementById('email-count').textContent = state.allEmails.length;
+  document.getElementById('dup-note').textContent = dups > 0 ? `(${dups} duplicates removed)` : '';
+  document.getElementById('stat-total').textContent = state.allEmails.length;
+}
+
+// ── PDF ──
+function handlePdfFile(input) { if (input.files[0]) processPdf(input.files[0]); }
+
+function processPdf(file) {
+  state.pdfFile = file;
+  document.getElementById('pdf-filename').textContent = '✔ ' + file.name;
+  document.getElementById('pdf-drop').classList.add('has-file');
+  document.getElementById('subject-input').value = file.name.replace(/\.pdf$/i,'');
+  const reader = new FileReader();
+  reader.onload = e => { state.pdfBase64 = e.target.result.split(',')[1]; };
+  reader.readAsDataURL(file);
+}
+
+// ── ACCOUNTS ──
+function loadAccountsFromStorage() {
+  try { state.accounts = JSON.parse(localStorage.getItem('circular_accounts')) || Array(8).fill(0).map(()=>({email:'',password:'',name:''})); }
+  catch { state.accounts = Array(8).fill(0).map(()=>({email:'',password:'',name:''})); }
+}
+function saveAccounts() {
+  const rows = document.getElementById('acc-grid').querySelectorAll('.acc-row');
+  state.accounts = Array.from(rows).map(r => ({ email: r.querySelector('.acc-email').value.trim(), password: r.querySelector('.acc-pass').value.trim(), name: r.querySelector('.acc-name').value.trim() }));
+  localStorage.setItem('circular_accounts', JSON.stringify(state.accounts));
+  toast('Accounts saved!', 'success');
+}
+function buildAccountsGrid() {
+  const grid = document.getElementById('acc-grid');
+  grid.innerHTML = '';
+  state.accounts.forEach((acc, i) => {
+    const row = document.createElement('div'); row.className = 'acc-row';
+    row.innerHTML = `<div class="acc-num">${i+1}</div>
+      <input class="acc-email" type="text" placeholder="account@gmail.com" value="${esc(acc.email)}" autocomplete="off" spellcheck="false" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--sans);outline:none;width:100%;">
+      <input class="acc-pass" type="password" placeholder="App password (16 chars)" value="${esc(acc.password)}" autocomplete="off" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--mono);outline:none;width:100%;">
+      <input class="acc-name" type="text" placeholder="Sender name (e.g. GAES CIRCULAR)" value="${esc(acc.name||'')}" autocomplete="off" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--sans);outline:none;width:100%;">
+      <button class="eye-btn" onclick="togglePassVis(this)">👁</button>`;
+    grid.appendChild(row);
+  });
+}
+function togglePassVis(btn) { const i = btn.previousElementSibling; i.type = i.type==='password'?'text':'password'; }
+function exportAccounts() { saveAccounts(); dl('accounts.json', JSON.stringify(state.accounts,null,2), 'application/json'); }
+function importAccounts(input) {
+  const r = new FileReader(); r.onload = e => {
+    try { state.accounts = JSON.parse(e.target.result); buildAccountsGrid(); saveAccounts(); toast('Imported!','success'); }
+    catch { toast('Invalid JSON','error'); }
+  }; r.readAsText(input.files[0]);
+}
+
+// ── SETTINGS ──
+function toggleSchedule() { document.getElementById('schedule-time').style.display = document.getElementById('schedule-toggle').checked ? '' : 'none'; }
+
+// ── SEND ──
+async function startSend() {
+  if (state.sending) return;
+  const emails = state.allEmails;
+  const subject = document.getElementById('subject-input').value.trim();
+  const isTest = document.getElementById('test-mode').checked;
+  const schedEnabled = document.getElementById('schedule-toggle').checked;
+  const schedTime = document.getElementById('schedule-time').value;
+  const activeAccs = state.accounts.filter(a => a.email && a.password);
+
+  if (!emails.length && !isTest) return toast('No recipients found. Load an Excel file first.','error');
+  if (!subject) return toast('Please enter a subject line.','error');
+  if (!state.pdfBase64) return toast('Please select a PDF file.','error');
+  if (!activeAccs.length) return toast('Add at least one Gmail account in the Accounts tab.','error');
+
+  if (schedEnabled && schedTime) { toast(`Scheduled for ${schedTime}. Waiting…`,'info'); await waitUntil(schedTime); toast('Starting now…','info'); }
+
+  state.sending = true; state.cancelFlag = false; state.totalSent = 0; state.totalFailed = 0;
+  document.getElementById('send-btn').style.display = 'none';
+  document.getElementById('cancel-btn').style.display = '';
+  document.getElementById('progress-card').style.display = '';
+
+  const live = document.getElementById('live-log'); live.innerHTML = '';
+
+  const finalEmails = isTest ? [activeAccs[0].email] : emails;
+  const batches = chunk(finalEmails, BATCH_SIZE);
+
+  if (isTest) addLive('🧪 TEST MODE — 1 email to primary account','warn');
+  addLive(`🎯 ${finalEmails.length} recipients | 📦 ${batches.length} batch(es) | 📧 ${activeAccs.length} account(s)`,'info');
+  updateProgress(0, finalEmails.length);
+
+  for (let i = 0; i < batches.length; i++) {
+    if (state.cancelFlag) { addLive('⛔ Cancelled.','warn'); break; }
+    const acc = activeAccs[i % activeAccs.length];
+    const batch = batches[i];
+    addLive(`Batch ${i+1}/${batches.length} → ${acc.email} (${batch.length} recipients)`,'info');
+
+    try {
+      await sendBatch(acc, subject, batch);
+      state.totalSent += batch.length;
+      addLive(`✅ Batch ${i+1} sent — ${batch.length} emails via ${acc.email}`,'ok');
+      // Log every individual recipient
+      batch.forEach(email => addLive(`   ✉ ${email}`, 'ok'));
+      addLog({ type:'success', msg:`Batch ${i+1}: ${batch.length} emails via ${acc.email}`, from:acc.email, batchIdx:i+1, count:batch.length, recipients:[...batch] });
+    } catch(err) {
+      state.totalFailed += batch.length;
+      addLive(`❌ Batch ${i+1} FAILED (${acc.email}): ${err.message}`,'err');
+      batch.forEach(email => addLive(`   ✗ ${email}`, 'err'));
+      addLog({ type:'error', msg:`Batch ${i+1} FAILED (${acc.email}): ${err.message}`, from:acc.email, batchIdx:i+1, count:batch.length, recipients:[...batch] });
+      document.getElementById('log-badge').style.display = '';
+    }
+
+    updateProgress(state.totalSent + state.totalFailed, finalEmails.length);
+    document.getElementById('stat-sent').textContent = state.totalSent;
+    document.getElementById('stat-failed').textContent = state.totalFailed;
+  }
+
+  if (!state.cancelFlag) {
+    addLive(`✅ DONE — ${state.totalSent} sent, ${state.totalFailed} failed.`, state.totalFailed?'err':'ok');
+    toast(`Done! ${state.totalSent} sent.`, state.totalFailed?'error':'success');
+  }
+  state.sending = false;
+  document.getElementById('send-btn').style.display = '';
+  document.getElementById('cancel-btn').style.display = 'none';
+  saveLogsToStorage(); updateLogStats();
+}
+
+function cancelSend() {
+  state.cancelFlag = true; state.sending = false;
+  document.getElementById('send-btn').style.display = '';
+  document.getElementById('cancel-btn').style.display = 'none';
+}
+
+async function sendBatch(acc, subject, recipients) {
+  const res = await fetch(PROXY_URL, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ email:acc.email, password:acc.password, subject, recipients, pdfBase64:state.pdfBase64, pdfName:state.pdfFile?state.pdfFile.name:'circular.pdf', sender_name:acc.name||document.getElementById('sender-name').value.trim() })
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({error:res.statusText})); throw new Error(e.error||res.statusText); }
+}
+
+function updateProgress(done, total) {
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('progress-text').textContent = `${done} / ${total}`;
+  document.getElementById('progress-pct').textContent = pct+'%';
+}
+
+function addLive(msg, type='info') {
+  const log = document.getElementById('live-log');
+  const el = document.createElement('div'); el.className='log-entry';
+  el.innerHTML = `<span class="log-time">${ts()}</span><span class="log-${type}">${esc(msg)}</span>`;
+  log.appendChild(el); log.scrollTop = log.scrollHeight;
+}
+
+async function waitUntil(t) {
+  return new Promise(res => { const iv = setInterval(()=>{ if(new Date().toTimeString().slice(0,5)===t){clearInterval(iv);res();}},15000); });
+}
+
+// ── LOGS ──
+function addLog(entry) {
+  entry.time = new Date().toISOString();
+  state.logs.push(entry);
+  updateLogStats(); saveLogsToStorage();
+}
+
+function renderLogs() {
+  const panel = document.getElementById('log-panel');
+  let filtered = state.logs;
+  if (state.currentLogFilter==='success') filtered = state.logs.filter(l=>l.type==='success');
+  else if (state.currentLogFilter==='error') filtered = state.logs.filter(l=>l.type==='error');
+
+  if (!filtered.length) { panel.innerHTML='<div class="log-empty">No entries.</div>'; return; }
+
+  // Grouped by batch, each batch expandable to show every email
+  panel.innerHTML = [...filtered].reverse().map((l,idx) => {
+    const cls = l.type==='success'?'ok':'err';
+    const icon = l.type==='success'?'✅':'❌';
+    const emailLines = (l.recipients||[]).map(e => `<div class="log-email-line ${cls}">  ✉ ${esc(e)}</div>`).join('');
+    return `<div class="log-group">
+      <div class="log-group-header" onclick="toggleGroup(this)">
+        <span class="log-time">${new Date(l.time).toLocaleString()}</span>
+        ${icon} ${esc(l.msg)} ▶
+      </div>
+      <div class="log-group-emails">
+        ${emailLines || '<div class="log-email-line">No recipients recorded.</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGroup(header) {
+  const emails = header.nextElementSibling;
+  emails.classList.toggle('open');
+  header.textContent = header.textContent.replace(/[▶▼]$/, emails.classList.contains('open')?'▼':'▶');
+}
+
+function updateLogStats() {
+  document.getElementById('log-stat-total').textContent = state.logs.length;
+  document.getElementById('log-stat-ok').textContent = state.logs.filter(l=>l.type==='success').length;
+  document.getElementById('log-stat-err').textContent = state.logs.filter(l=>l.type==='error').length;
+}
+
+function clearLogs() {
+  if (!confirm('Clear all logs?')) return;
+  state.logs = []; localStorage.removeItem('circular_logs');
+  renderLogs(); updateLogStats();
+  document.getElementById('log-badge').style.display='none';
+}
+function saveLogsToStorage() { try { localStorage.setItem('circular_logs', JSON.stringify(state.logs)); } catch {} }
+function loadLogsFromStorage() { try { state.logs = JSON.parse(localStorage.getItem('circular_logs'))||[]; } catch { state.logs=[]; } }
+
+function exportLog(filter) {
+  let rows = state.logs;
+  if (filter==='success') rows = rows.filter(l=>l.type==='success');
+  if (filter==='error') rows = rows.filter(l=>l.type==='error');
+
+  // One row per recipient for full traceability
+  const lines = ['Time,Type,From Account,Batch #,Recipient Email,Status'];
+  rows.forEach(l => {
+    const status = l.type==='success'?'SENT':'FAILED';
+    (l.recipients||[]).forEach(email => {
+      lines.push([
+        `"${new Date(l.time).toLocaleString()}"`,
+        l.type, l.from||'', l.batchIdx||'',
+        email, status
+      ].join(','));
+    });
+    if (!(l.recipients||[]).length) {
+      lines.push([`"${new Date(l.time).toLocaleString()}"`, l.type, l.from||'', l.batchIdx||'', '', ''].join(','));
+    }
+  });
+
+  dl(`circular_${filter}_log_${dateStr()}.csv`, lines.join('\n'), 'text/csv');
+  toast(`Exported!`, 'success');
+}
+
+// ── UTILS ──
+function chunk(arr, n) { const r=[]; for(let i=0;i<arr.length;i+=n) r.push(arr.slice(i,i+n)); return r; }
+function ts() { return new Date().toTimeString().slice(0,8); }
+function dateStr() { return new Date().toISOString().slice(0,10); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dl(name, content, mime) { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:mime})); a.download=name; a.click(); }
+function toast(msg, type='info') {
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div'); t.className=`toast ${type}`;
+  t.innerHTML=`<span>${type==='success'?'✅':type==='error'?'❌':'ℹ️'}</span><span>${esc(msg)}</span>`;
+  c.appendChild(t); setTimeout(()=>t.remove(),4500);
+}
+
+// ── Proxy check on load ──
+(async()=>{
+  try { await fetch('http://localhost:9090/ping',{mode:'no-cors'}); }
+  catch {
+    document.getElementById('live-log').innerHTML=`
+      <div style="color:var(--orange);line-height:1.9;font-size:12px;">
+        <div>⚠️ <strong style="color:var(--text)">SMTP proxy not detected on port 9090.</strong></div>
+        <div style="color:var(--muted2);margin-top:4px;">Run <code style="color:#3ddc84">python server.py</code> in your Mail folder, then reload this page.</div>
+      </div>`;
+  }
+})();
+</script>
+</body>
+</html>

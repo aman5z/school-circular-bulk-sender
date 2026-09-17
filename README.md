@@ -1,144 +1,45 @@
 # CircularSender
 
-A lightweight, self-hosted bulk email dispatcher designed for distributing school circulars as PDF attachments.
-
-CircularSender provides a browser-based interface for importing recipient lists from Excel/CSV files, selecting a target audience, attaching a PDF circular, configuring Gmail SMTP accounts, and dispatching emails in batches with live progress and detailed logs.
+A local web-based school circular distribution tool for sending PDF circulars to large recipient lists using Gmail SMTP accounts.
 
 ## Features
 
-* 📊 Import recipients from `.xlsx`, `.xls`, or `.csv`
-* 🔎 Automatically detect email columns
-* 🧹 Remove duplicate email addresses
-* 🎯 Filter recipients by Class, Grade, or Section
-* 📄 Attach PDF circulars
-* 📝 Automatically use the PDF filename as the initial subject
-* 📧 Support multiple Gmail SMTP accounts
-* 🔐 Gmail App Password authentication
-* 📦 Split large recipient lists into batches
-* 🧪 Test Mode for sending to the primary account before a real dispatch
-* ⏰ Schedule a dispatch for a specified time
-* 📈 Live sending progress
-* 📟 Live activity output
-* ❌ Cancellation support
-* 📋 Persistent dispatch logs
-* 🔍 Filter logs by success or error
-* 📤 Export success, error, or complete logs as CSV
-* ⚙️ Import/export Gmail account configuration
-* 🖥️ Local Flask server
-* 🌐 LAN access from other computers
-* 🔔 Windows system-tray integration
-* 🚀 Optional PyInstaller executable build
-
-## How It Works
-
-```text
-Excel / CSV
-     │
-     ▼
-CircularSender Web Interface
-     │
-     ├── Select email columns
-     ├── Remove duplicates
-     ├── Select class / section
-     ├── Select PDF circular
-     ├── Set subject
-     └── Configure sender accounts
-     │
-     ▼
-Recipient Batching
-     │
-     ▼
-Local Flask Backend
-     │
-     ▼
-Gmail SMTP
-     │
-     ▼
-Recipients
-```
-
-The frontend runs in the browser while the Python backend handles SMTP authentication and email delivery.
+- Import recipients from Excel (`.xlsx`, `.xls`) or CSV
+- Automatic email-column detection
+- Detect and filter by class / grade / section
+- Send PDF circulars as attachments
+- Support multiple Gmail SMTP accounts
+- Batch recipients across configured accounts
+- Test Mode
+- Scheduled sending
+- Live sending progress
+- Success and error logs
+- CSV log export
+- Browser-based account configuration
+- Optional Windows system-tray operation
+- LAN access from other computers on the same network
 
 ## Project Structure
 
 ```text
 CircularSender/
-│
-├── CircularSender.html      # Web interface
-├── server.py                # Flask + Gmail SMTP backend
-├── CircularSender.spec      # PyInstaller build configuration
-├── START.bat                # Windows development/startup script
-├── requirements.txt         # Python dependencies
-├── README.md                # Documentation
-├── .gitignore               # Git exclusions
-└── LICENSE                  # Optional license
+├── CircularSender.html
+├── server.py
+├── CircularSender.spec
+├── START.bat
+├── requirements.txt
+├── README.md
+├── .gitignore
+└── LICENSE
 ```
 
 ## Requirements
 
-### Windows
-
-* Windows 10/11
-* Python 3.x
-* Internet connection
-* Gmail account(s) with App Passwords enabled
-
-### Python packages
-
-```bash
-pip install -r requirements.txt
-```
-
-Required packages:
-
-```text
-Flask
-flask-cors
-pystray
-Pillow
-```
-
-## Gmail Configuration
-
-CircularSender uses Gmail SMTP with an App Password.
-
-Each configured account contains:
-
-* Gmail address
-* Gmail App Password
-* Sender display name
-
-The application uses:
-
-```text
-SMTP Server: smtp.gmail.com
-SMTP Port: 465
-Security: SSL
-```
-
-Do not use your normal Gmail password.
-
-Use a Gmail App Password where supported by your Google account.
-
-## Running the Application
-
-### Option 1 — START.bat
-
-On Windows, run:
-
-```text
-START.bat
-```
-
-The script starts the local Flask server and opens the application.
-
-The application is available at:
-
-```text
-http://localhost:9090
-```
-
-### Option 2 — Python
+- Windows 10/11 recommended
+- Python 3.10+ recommended
+- Gmail account(s)
+- Gmail App Password for each SMTP account
+- Network access to Gmail SMTP
 
 Install dependencies:
 
@@ -146,288 +47,27 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Then run:
+## Gmail Setup
 
-```bash
-python server.py
-```
-
-Open:
+CircularSender uses Gmail SMTP over SSL:
 
 ```text
-http://localhost:9090
+SMTP server: smtp.gmail.com
+Port: 465
+Security: SMTP SSL
 ```
 
-## LAN Access
+Use a Gmail **App Password** rather than your normal Gmail password.
 
-The Flask server listens on:
+Never publish App Passwords in the repository.
 
-```text
-0.0.0.0:9090
-```
+## Running
 
-This allows the application to be accessed from another computer on the same LAN.
+### START.bat
 
-For example:
+Double-click `START.bat`. It installs the required packages and starts the server.
 
-```text
-http://192.168.1.100:9090
-```
-
-Replace the IP address with the IP address of the computer running CircularSender.
-
-Windows Firewall must allow inbound TCP traffic on port `9090` if other computers need access.
-
-## Sending a Circular
-
-### 1. Import the recipient list
-
-Upload an Excel or CSV file.
-
-CircularSender attempts to detect columns containing email addresses.
-
-For example:
-
-```text
-Name              Email                    Class
----------------------------------------------------
-John              john@example.com         8A
-Sarah             sarah@example.com        8A
-David             david@example.com        8B
-```
-
-### 2. Select the audience
-
-Choose:
-
-```text
-ALL — All recipients
-```
-
-or a detected class/grade/section.
-
-### 3. Select the PDF
-
-Upload the school circular PDF.
-
-The filename is automatically used as the initial email subject.
-
-### 4. Configure the sender
-
-Add one or more Gmail accounts in the **Gmail Accounts** tab.
-
-Each account can have its own sender display name.
-
-### 5. Test
-
-Enable:
-
-```text
-Test Mode
-```
-
-This sends a test email to the primary configured Gmail account rather than the complete recipient list.
-
-### 6. Send
-
-Click:
-
-```text
-START SENDING
-```
-
-The recipient list is divided into batches and processed sequentially.
-
-## Recipient Batching
-
-The current frontend uses a batch size of:
-
-```text
-499 recipients
-```
-
-Batches are assigned to configured accounts sequentially.
-
-For example:
-
-```text
-Batch 1 → Account 1
-Batch 2 → Account 2
-Batch 3 → Account 3
-Batch 4 → Account 4
-Batch 5 → Account 1
-```
-
-Only accounts containing both an email address and password are considered active.
-
-## Scheduling
-
-The Send Settings section provides a scheduling option.
-
-When enabled, the browser waits until the selected time before beginning the dispatch.
-
-Keep the browser/application running while waiting for the scheduled send.
-
-## Logs
-
-CircularSender records dispatch information locally in browser storage.
-
-The Logs section provides:
-
-* All dispatches
-* Successful batches
-* Failed batches
-* Individual recipient lists
-* Success/error filtering
-* CSV export
-
-Available exports:
-
-```text
-Success Log
-Error Log
-Full Log
-```
-
-## Account Configuration
-
-Account settings are stored in browser `localStorage`.
-
-The application also provides:
-
-```text
-Export JSON
-Import JSON
-```
-
-for transferring account configuration between browser installations.
-
-### Security Warning
-
-Account configuration contains Gmail App Passwords.
-
-Do **not** commit exported account JSON files to Git.
-
-Do not upload real credentials to GitHub.
-
-If an account configuration has been exposed publicly, revoke the affected App Password and create a new one.
-
-## Building a Windows Executable
-
-The repository includes:
-
-```text
-CircularSender.spec
-```
-
-for PyInstaller.
-
-A typical build command is:
-
-```bash
-pyinstaller CircularSender.spec
-```
-
-The generated executable will be placed in the PyInstaller output directory.
-
-Before building, make sure the `.spec` file references the local project `server.py` rather than a machine-specific absolute path.
-
-## Architecture
-
-### Frontend
-
-```text
-CircularSender.html
-```
-
-The frontend handles:
-
-* UI
-* Excel parsing
-* Recipient filtering
-* Duplicate removal
-* PDF loading
-* Account configuration
-* Scheduling
-* Batch management
-* Progress display
-* Local logs
-
-SheetJS is used in the browser to process Excel files.
-
-### Backend
-
-```text
-server.py
-```
-
-The backend provides a small Flask API.
-
-Endpoints:
-
-```text
-GET  /
-GET  /ping
-POST /send
-```
-
-`/` serves the CircularSender interface.
-
-`/ping` is used to determine whether the local backend is running.
-
-`/send` receives the email account, recipients, subject and PDF data and sends the message through Gmail SMTP.
-
-## Important Limitations
-
-This project is intended as a lightweight internal tool rather than a full enterprise mail delivery platform.
-
-Current implementation characteristics include:
-
-* Gmail SMTP is used for delivery.
-* Scheduling is performed by the browser.
-* Account settings are stored in browser `localStorage`.
-* Dispatch logs are stored in browser `localStorage`.
-* LAN access depends on Windows Firewall/network configuration.
-* The frontend loads some resources from external CDNs.
-* Delivery status represents successful SMTP submission, not confirmation that the recipient actually opened or received the message.
-* A failed batch is currently treated as failed for the recipients in that batch.
-* The application should remain running during scheduled operations.
-
-## Security Considerations
-
-CircularSender handles sensitive information including:
-
-* Gmail addresses
-* Gmail App Passwords
-* Recipient email addresses
-* School circular documents
-* Dispatch history
-
-For internal deployment:
-
-* Restrict LAN access to trusted networks.
-* Do not expose port `9090` directly to the public Internet.
-* Do not commit credentials or exported account JSON files.
-* Use Gmail App Passwords rather than normal account passwords.
-* Protect the Windows computer hosting the application.
-* Consider moving credential storage to a secure encrypted mechanism for production use.
-
-## Development
-
-Clone the repository:
-
-```bash
-git clone https://github.com/<your-username>/circular-sender.git
-cd circular-sender
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run:
+### Python
 
 ```bash
 python server.py
@@ -439,13 +79,107 @@ Then open:
 http://localhost:9090
 ```
 
+## LAN Access
+
+The server listens on `0.0.0.0:9090`.
+
+From another computer on the same trusted LAN:
+
+```text
+http://SERVER-IP:9090
+```
+
+Example:
+
+```text
+http://192.168.0.100:9090
+```
+
+Windows Firewall may need an inbound TCP rule for port `9090`.
+
+## Sending Workflow
+
+1. Start CircularSender.
+2. Import the recipient Excel/CSV file.
+3. Select the target audience.
+4. Upload the PDF circular.
+5. Configure the sender display name.
+6. Configure Gmail SMTP accounts.
+7. Optionally enable Test Mode or Schedule.
+8. Start sending.
+9. Review progress and logs.
+10. Export logs if required.
+
+## Recipient File
+
+The application attempts to detect email and class/grade/section columns. Duplicate email addresses are removed.
+
+The target audience can be `ALL` or a detected class/grade/section value.
+
+## Multiple Gmail Accounts
+
+The current application supports multiple Gmail accounts and uses a batch size of **499 recipients**. Active accounts are rotated batch-by-batch.
+
+## Test Mode
+
+Test Mode uses the primary configured account for the test operation.
+
+## Scheduling
+
+Scheduling is handled in the browser. Keep the CircularSender page open and the server running until the scheduled send starts.
+
+## Logs
+
+Logs are stored in browser `localStorage`. The interface can export successful records, errors, or full logs as CSV.
+
+## Security
+
+- Gmail App Passwords are stored in browser `localStorage`.
+- Account configuration can be exported as JSON.
+- Never commit exported account JSON files.
+- Do not share App Passwords.
+- Do not expose port `9090` to the public Internet.
+- The current server has no user authentication.
+- Run the application only on a trusted network.
+
+## Delivery Status
+
+A successful application response means the SMTP submission operation completed successfully for the batch. It does **not** guarantee final inbox delivery. Bounces, spam filtering, and downstream recipient-server decisions are not currently tracked.
+
+## Building a Windows Executable
+
+Install PyInstaller:
+
+```bash
+pip install pyinstaller
+```
+
+Build using the included spec:
+
+```bash
+pyinstaller CircularSender.spec
+```
+
+The executable will be placed in `dist/`.
+
+## API
+
+The Flask server provides:
+
+```text
+GET  /
+GET  /ping
+POST /send
+```
+
+## Current Limitations
+
+- Scheduling depends on the browser page remaining open.
+- Credentials are stored client-side in `localStorage`.
+- No authentication is implemented for the Flask server.
+- SMTP submission is not the same as per-recipient delivery confirmation.
+- SheetJS is loaded from an external CDN, so the frontend is not completely offline/self-contained.
+
 ## License
 
-Choose a license appropriate for your intended distribution.
-
-If this is primarily an internal school IT project, you may also keep the repository private and omit a public license.
-
----
-
-**CircularSender**
-Lightweight school circular distribution through Gmail SMTP.
+MIT License. See `LICENSE`.

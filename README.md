@@ -1,3 +1,5 @@
+<img width="721" height="787" alt="circular" src="https://github.com/user-attachments/assets/6fe4dfad-829a-4b9b-9be6-ef069b768435" />
+
 # CircularSender
 
 A local web-based school circular distribution tool for sending PDF circulars to large recipient lists using Gmail SMTP accounts.
